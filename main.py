@@ -1,17 +1,21 @@
 import os
 import re
 import requests
+import logging
+import asyncio
+from aiohttp import web
 from bs4 import BeautifulSoup
 from pyrogram import Client, filters
-from aiohttp import web
-import asyncio
 
-# Get API details from environment variables
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Replace with your API details
 API_HASH = os.environ.get('API_HASH')
 API_ID = int(os.environ.get('API_ID'))
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
-# Get channel IDs from environment variables
+# Replace with your channel IDs
 CHANNEL_ID_1 = int(os.environ.get('CHANNEL_ID_1'))
 CHANNEL_ID_2 = int(os.environ.get('CHANNEL_ID_2'))
 
@@ -28,9 +32,15 @@ async def start(client, message):
 @app.on_message(filters.text & ~filters.command("start"))
 async def scan_website(client, message):
     url = message.text
+    logging.info(f"Scanning URL: {url}")
+    
     internal_links, external_links, mp3_links = await find_links(url)
-
-    await client.send_message(chat_id=message.chat.id, text=f"Found {len(mp3_links)} MP3 links on {url}.")
+    
+    logging.info(f"Found {len(mp3_links)} MP3 links on {url}.")
+    
+    if not mp3_links:
+        await client.send_message(chat_id=message.chat.id, text="No MP3 links found.")
+        return
 
     for link in mp3_links:
         filename = os.path.basename(link)
@@ -52,9 +62,16 @@ async def scan_website(client, message):
     await client.send_message(chat_id=message.chat.id, text=f"Found {len(internal_links)} internal links and {len(external_links)} external links on {url}.")
 
 async def find_links(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    response = requests.get(url, headers=headers)
+    logging.info(f"Response status code: {response.status_code}")
+    if response.status_code != 200:
+        logging.error(f"Failed to retrieve URL: {url}")
+        return [], [], []
 
+    soup = BeautifulSoup(response.text, 'html.parser')
     internal_links = []
     external_links = []
     mp3_links = []
