@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: bot
+    runtime:
+      version: '3.9.0'
+    env:
+      - name: API_HASH
+        value: YOUR_API_HASH
+      - name: API_ID
+        value: YOUR_API_ID
+      - name: BOT_TOKEN
+        value: YOUR_BOT_TOKEN
+      - name: CHANNEL_ID_1
+        value: YOUR_CHANNEL_ID_1
+      - name: CHANNEL_ID_2
+        value: YOUR_CHANNEL_ID_2
+    ports:
+      - port: 8080
+        protocol: http
+    script:
+      - pip install -r requirements.txt
+      - python main.py
