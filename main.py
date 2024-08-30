@@ -1,14 +1,9 @@
 import os
 import re
-import requests
-import logging
 import asyncio
-from aiohttp import web
 from bs4 import BeautifulSoup
 from pyrogram import Client, filters
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+from pyppeteer import launch
 
 # Replace with your API details
 API_HASH = os.environ.get('API_HASH')
@@ -32,11 +27,7 @@ async def start(client, message):
 @app.on_message(filters.text & ~filters.command("start"))
 async def scan_website(client, message):
     url = message.text
-    logging.info(f"Scanning URL: {url}")
-    
-    internal_links, external_links, mp3_links = await find_links(url)
-    
-    logging.info(f"Found {len(mp3_links)} MP3 links on {url}.")
+    mp3_links = await find_links(url)
     
     if not mp3_links:
         await client.send_message(chat_id=message.chat.id, text="No MP3 links found.")
@@ -44,11 +35,7 @@ async def scan_website(client, message):
 
     for link in mp3_links:
         filename = os.path.basename(link)
-        filename = filename.replace("sensongsmp", "").replace("sensongsmp3.com", "")
         cleaned_filename = await clean_file_name(filename)
-        cleaned_filename = cleaned_filename.replace(" mp", "")
-        cleaned_filename = cleaned_filename.replace(".", " ") + " mp3"
-        cleaned_filename = cleaned_filename.replace(" mp mp3", " mp3")
         filepath = await download_file(link, filename)
         file_size = os.path.getsize(filepath) / (1024 * 1024)
         caption = f"File: {cleaned_filename}\nSize: {file_size:.2f} MB\nJoin @Naaflix_1"
@@ -59,33 +46,22 @@ async def scan_website(client, message):
 
         os.remove(filepath)
 
-    await client.send_message(chat_id=message.chat.id, text=f"Found {len(internal_links)} internal links and {len(external_links)} external links on {url}.")
-
 async def find_links(url):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    response = requests.get(url, headers=headers)
-    logging.info(f"Response status code: {response.status_code}")
-    if response.status_code != 200:
-        logging.error(f"Failed to retrieve URL: {url}")
-        return [], [], []
+    browser = await launch()
+    page = await browser.newPage()
+    await page.goto(url)
+    content = await page.content()
+    await browser.close()
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    internal_links = []
-    external_links = []
+    soup = BeautifulSoup(content, 'html.parser')
     mp3_links = []
 
     for link in soup.find_all('a'):
         href = link.get('href')
-        if href.startswith('/'):
-            internal_links.append(url + href)
-        elif href.startswith('http'):
-            external_links.append(href)
         if href.endswith('.mp3'):
             mp3_links.append(href)
 
-    return internal_links, external_links, mp3_links
+    return mp3_links
 
 async def clean_file_name(filename):
     cleaned_name = re.sub(r'[0-9]', '', filename)
@@ -94,12 +70,8 @@ async def clean_file_name(filename):
     return cleaned_name.strip()
 
 async def download_file(url, filename):
-    response = requests.get(url, stream=True)
-    filepath = os.path.join('downloads', filename)
-    with open(filepath, 'wb') as file:
-        for chunk in response.iter_content(chunk_size=1024):
-            file.write(chunk)
-    return filepath
+    # Download the file using requests or another library
+    pass
 
 async def handle(request):
     return web.Response(text="Bot is running")
